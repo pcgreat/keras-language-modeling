@@ -1,15 +1,15 @@
 from __future__ import print_function
 
-import os
-
-import sys
-import random
-from time import strftime, gmtime, time
-
-import pickle
 import json
+import os
+import pdb
+import pickle
+import random
+import sys
+# import thread
+import threading
+from time import strftime, gmtime
 
-import thread
 from scipy.stats import rankdata
 
 random.seed(42)
@@ -34,7 +34,7 @@ class Evaluator:
         self.params = conf['training']
         optimizer = self.params['optimizer'] if optimizer is None else optimizer
         self.model.compile(optimizer)
-        self.answers = self.load('answers') # self.load('generated')
+        self.answers = self.load('answers')  # self.load('generated')
         self._vocab = None
         self._reverse_vocab = None
         self._eval_sets = None
@@ -110,6 +110,7 @@ class Evaluator:
         for j, q in enumerate(training_set):
             questions += [q['question']] * len(q['answers'])
             good_answers += [self.answers[i] for i in q['answers']]
+            # pdb.set_trace()
             indices += [j] * len(q['answers'])
         log('Began training at %s on %d samples' % (self.get_time(), len(questions)))
 
@@ -121,17 +122,17 @@ class Evaluator:
         # def get_bad_samples(indices, top_50):
         #     return [self.answers[random.choice(top_50[i])] for i in indices]
 
-        for i in range(1, nb_epoch+1):
+        for i in range(1, nb_epoch + 1):
             # sample from all answers to get bad answers
             # if i % 2 == 0:
             #     bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
             # else:
             #     bad_answers = self.pada(get_bad_samples(indices, top_50))
-            bad_answers = self.pada(random.sample(self.answers.values(), len(good_answers)))
+            bad_answers = self.pada(random.sample(list(self.answers.values()), len(good_answers)))
 
             print('Fitting epoch %d' % i, file=sys.stderr)
             hist = self.model.fit([questions, good_answers, bad_answers], nb_epoch=1, batch_size=batch_size,
-                             validation_split=validation_split, verbose=1)
+                                  validation_split=validation_split, verbose=1)
 
             if hist.history['val_loss'][0] < val_loss['loss']:
                 val_loss = {'loss': hist.history['val_loss'][0], 'epoch': i}
@@ -214,11 +215,15 @@ class Evaluator:
 if __name__ == '__main__':
     if len(sys.argv) >= 2 and sys.argv[1] == 'serve':
         from flask import Flask
+
         app = Flask(__name__)
         port = 5000
         lines = list()
+
+
         def log(x):
             lines.append(x)
+
 
         @app.route('/')
         def home():
@@ -226,10 +231,12 @@ if __name__ == '__main__':
                     ''.join(['<code>{}</code><br/>'.format(line) for line in lines]) +
                     '</body></html>')
 
+
         def start_server():
             app.run(debug=False, use_evalex=False, port=port)
 
-        thread.start_new_thread(start_server, tuple())
+
+        threading.Thread(target=start_server).start()
         print('Serving to port %d' % port, file=sys.stderr)
 
     import numpy as np
@@ -257,6 +264,7 @@ if __name__ == '__main__':
     }
 
     from keras_models import EmbeddingModel
+
     evaluator = Evaluator(conf, model=EmbeddingModel, optimizer='adam')
 
     # train the model

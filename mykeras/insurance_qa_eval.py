@@ -242,10 +242,10 @@ if __name__ == '__main__':
 
     conf = {
         'n_words': 22353,
-        'question_len': 20,
+        'question_len': 150,
         'answer_len': 150,
         'margin': 0.05,
-        'initial_embed_weights': 'word2vec_100_dim.embeddings',
+        'initial_embed_weights': 'mykeras/word2vec_100_dim.embeddings',
 
         'training': {
             'batch_size': 100,
@@ -262,9 +262,9 @@ if __name__ == '__main__':
         }
     }
 
-    from mykeras.keras_models import EmbeddingModel
+    from mykeras.keras_models import ConvolutionModel2
 
-    evaluator = Evaluator(conf, model=EmbeddingModel, optimizer='adam')
+    evaluator = Evaluator(conf, model=ConvolutionModel2, optimizer='adam')
 
     # train the model
     best_loss = evaluator.train()

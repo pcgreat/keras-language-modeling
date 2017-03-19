@@ -16,7 +16,7 @@ treq_eval*
 *.txt
 *.dict
 *.model
-*.embeddings
+# *.embeddings
 
 # virtual environments
 venv/

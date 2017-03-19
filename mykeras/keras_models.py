@@ -5,7 +5,7 @@ from abc import abstractmethod
 import numpy as np
 from keras import backend as K
 from keras.engine import Input
-from keras.layers import merge, Embedding, Dropout, Convolution1D, Lambda, LSTM, Dense
+from keras.layers import merge, Embedding, Dropout, Convolution1D, Lambda, LSTM, Dense, Activation, MaxPooling1D
 from keras.models import Model
 
 
@@ -162,6 +162,30 @@ class EmbeddingModel(LanguageModel):
         return question_pool, answer_pool
 
 
+class EmbeddingModel2(LanguageModel):
+    def build(self):
+        question = self.question
+        answer = self.get_answer()
+
+        # add embedding layers
+        weights = np.load(self.config['initial_embed_weights'])
+        embedding = Embedding(input_dim=self.config['n_words'],
+                              output_dim=weights.shape[1],
+                              mask_zero=True,
+                              # dropout=0.2,
+                              weights=[weights])
+        question_embedding = embedding(question)
+        answer_embedding = embedding(answer)
+
+        # maxpooling
+        maxpool = Lambda(lambda x: K.max(x, axis=1, keepdims=False), output_shape=lambda x: (x[0], x[2]))
+        maxpool.supports_masking = True
+        question_pool = maxpool(question_embedding)
+        answer_pool = maxpool(answer_embedding)
+
+        return question_pool, answer_pool
+
+
 class ConvolutionModel(LanguageModel):
     def build(self):
         assert self.config['question_len'] == self.config['answer_len']
@@ -194,6 +218,47 @@ class ConvolutionModel(LanguageModel):
 
         return question_pool, answer_pool
 
+
+class ConvolutionModel2(LanguageModel):
+    def build(self):
+        assert self.config['question_len'] == self.config['answer_len']
+
+        question = self.question
+        answer = self.get_answer()
+
+        # add embedding layers
+        weights = np.load(self.config['initial_embed_weights'])
+        embedding = Embedding(input_dim=self.config['n_words'],
+                              output_dim=weights.shape[1],
+                              weights=[weights])
+        question_embedding = embedding(question)
+        answer_embedding = embedding(answer)
+
+        # fc
+        fc = Dense(200, activation='relu')
+        question_embedding2 = fc(question_embedding)
+        answer_embedding2 = fc(answer_embedding)
+
+        # cnn
+        cnns = [Convolution1D(filter_length=filter_length,
+                              nb_filter=500,
+                              border_mode='same') for filter_length in [1, 2, 3, 5]]
+        question_cnn = merge([cnn(question_embedding2) for cnn in cnns], mode='concat')
+        answer_cnn = merge([cnn(answer_embedding2) for cnn in cnns], mode='concat')
+
+        # maxpooling
+        maxpool_q = MaxPooling1D()
+        maxpool_q.supports_masking = True
+        activation_q = Activation('tanh')
+
+        maxpool_a = MaxPooling1D()
+        maxpool_a.supports_masking = True
+        activation_a = Activation('tanh')
+
+        question_pool = activation_q(maxpool_q(question_cnn))
+        answer_pool = activation_a(maxpool_q(answer_cnn))
+
+        return question_pool, answer_pool
 
 class ConvolutionalLSTM(LanguageModel):
     def build(self):
